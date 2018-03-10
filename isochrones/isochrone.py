@@ -270,6 +270,11 @@ class Isochrone(object):
         logLs = self.logL(*args)*1
         loggs = self.logg(*args)*1
         Teffs = self.Teff(*args)*1
+        # JCZ 300118
+        # add phases
+        if self.name == 'mist':
+            phases = self.phase(*args)*1
+        
         if bands is None:
             bands = self.bands
         if distance is not None:
@@ -281,10 +286,15 @@ class Isochrone(object):
         #         A = AV*EXTINCTION[band]
         #         mags[band] = mags[band] + dm + A
                 
-        
-        props = {'age':age,'mass':Ms,'radius':Rs,'logL':logLs,
-                'logg':loggs,'Teff':Teffs,'mag':mags}        
 
+        props = {'age':age,'mass':Ms,'radius':Rs,'logL':logLs,
+                 'logg':loggs,'Teff':Teffs,'mag':mags}
+        if self.name == 'mist':
+            props.update({'phase':phases})
+        
+
+        
+        
         if not return_df:
             return props
         else:
@@ -348,11 +358,16 @@ class Isochrone(object):
         logLs = self.logL(m,ages,feh)
         loggs = self.logg(m,ages,feh)
         Teffs = self.Teff(m,ages,feh)
+        # JCZ 300118
+        if self.name == 'mist':
+            phases = self.phase(m, ages, feh)
         mags = {band:self.mag[band](m,ages,feh) for band in self.bands}
 
         props = {'age':ages,'mass':Ms,'radius':Rs,'logL':logLs,
                 'logg':loggs, 'Teff':Teffs, 'mag':mags}
-
+        # JCZ 300118
+        if self.name == 'mist':
+            props.update({'phase':phases})
         if not return_df:
             return props
         else:
@@ -413,6 +428,9 @@ class Isochrone(object):
         logLs = self.logL(ms,ages,feh)
         loggs = self.logg(ms,ages,feh)
         Teffs = self.Teff(ms,ages,feh)
+        # JCZ 300118
+        if self.name == 'mist':
+            phases = self.phase(ms, ages, feh)
         mags = {band:self.mag[band](ms,ages,feh) for band in self.bands}
         #for band in self.bands:
         #    mags[band] = self.mag[band](ms,ages)
@@ -423,8 +441,10 @@ class Isochrone(object):
                 mags[band] = mags[band] + dm + A
 
         props = {'M':Ms,'R':Rs,'logL':logLs,'logg':loggs,
-                'Teff':Teffs,'mag':mags}        
-        
+                'Teff':Teffs,'mag':mags}
+        # JCZ 300118
+        if self.name == 'mist':
+            props.update({'phase':phases})
         if not return_df:
             return props
         else:
@@ -588,11 +608,16 @@ class FastIsochrone(Isochrone):
         self._maxmass = None
         self._minfeh = None
         self._maxfeh = None
-    
-        n_common_cols = len(self.modelgrid.common_columns)
-        self._mag_cols = {b:n_common_cols+i for i,b in enumerate(self.bands)}
-        self.mag = {b: MagFunction(self, b, i)
-                            for b,i in self._mag_cols.items()}
+
+        # JCZ 100118
+        # i had commented out the below three lines to make compatible with my interpolation code.
+        # but to make work with the NGC 6819 isochrone plotting code, need to put these back in
+        # JCZ 090218
+        # commented out again
+        # n_common_cols = len(self.modelgrid.common_columns)
+        # self._mag_cols = {b:n_common_cols+i for i,b in enumerate(self.bands)}
+        # self.mag = {b: MagFunction(self, b, i)
+                            # for b,i in self._mag_cols.items()}
 
         #organized array
         self._grid = None
@@ -680,6 +705,9 @@ class FastIsochrone(Isochrone):
     def logg(self, mass, age, feh):
         return self.interp_value(mass, age, feh, self.logg_col)
 
+    def phase(self, mass, age, feh):
+        return self.interp_value(mass, age, feh, self.phase_col)
+    
     def logL(self, mass, age, feh):
         return self.interp_value(mass, age, feh, self.logL_col)
 
@@ -705,14 +733,39 @@ class FastIsochrone(Isochrone):
     def _npz_filename(self):
         return os.path.join(ISOCHRONES, self.name, '{}.npz'.format('-'.join(self.bands)))   
 
-    def _make_grid(self, recalc=False):
+    def _make_grid(self, recalc=True):
+        # JCZ 100118
+        if not os.path.exists(os.path.dirname(self._npz_filename)):
+            os.system('mkdir -p {}'.format(os.path.dirname(self._npz_filename)))
         # Read from file if available.
         if os.path.exists(self._npz_filename) and not recalc:
             d = np.load(self._npz_filename)
             self._grid = d['grid']
             self._grid_Ns = d['grid_Ns']
+            
         else:
-            df_list = [[self.df.ix[f,a] for f in self.fehs] for a in self.ages]
+            # JCZ 150118
+            df_list = []
+            for a in self.ages:
+                ar = []
+                for f in self.fehs:
+                 
+                    try:
+                        ar.append(self.df.ix[f,a])
+                    except:
+                        ar.append([])
+                df_list.append(ar)
+
+
+            print '****************************************************************'
+            print df_list
+            print '&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&'
+            # print np.array(df_list).shape
+            # df_list = [[self.df.ix[f,a] for f in self.fehs] for a in self.ages]
+            # df_list = [[1 for f in self.fehs] for a in self.ages]
+            print df_list
+            print '****************************************************************'
+            
             lens = np.array([[len(df_list[i][j]) for j in range(self.Nfeh)] 
                              for i in range(self.Nage)]).T #just because
             data = np.zeros((self.Nfeh, self.Nage, lens.max(), self.Ncols))
@@ -720,7 +773,9 @@ class FastIsochrone(Isochrone):
             for i in range(self.Nage):
                 for j in range(self.Nfeh):
                     N = lens[j,i]
-                    data[j, i, :N, :] = df_list[i][j].values
+                    
+                    if N > 0:
+                        data[j, i, :N, :] = df_list[i][j].values
                     data[j, i, N:, :] = np.nan
 
             np.savez(self._npz_filename, grid=data, grid_Ns=lens)
@@ -736,6 +791,8 @@ class FastIsochrone(Isochrone):
                                 self.grid, self.mass_col,
                                 self.ages, self.fehs, self.grid_Ns, self.debug)
 
+            pass
+        
         except:
             # First, broadcast to common shape.
             b = np.broadcast(mass, age, feh)

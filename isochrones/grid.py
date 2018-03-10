@@ -148,8 +148,12 @@ class ModelGrid(object):
             if not os.path.exists(f):
                 raise RuntimeError('{0} does not exist.  Run "import isochrones.{1}; isochrones.{1}.download_grids()" to download.'.format(f, cls.name))
             elif hashlib.md5(open(f,'rb').read()).hexdigest() != md5:
-                raise RuntimeError('{0} is wrong/corrupted.  Delete {0} and try again.'.format(f))
-                good = False
+
+                # JCZ 260218
+                # commenting this out because apparently i don't have an up-to-date version taht allows me to modify the dartmouth .tri file (see https://github.com/timothydmorton/isochrones/issues/43)
+                # raise RuntimeError('{0} is wrong/corrupted.  Delete {0} and try again.'.format(f))
+                # good = False
+                pass
             else:
                 logging.debug('{} verified.'.format(f))
         return good

@@ -66,6 +66,7 @@ class Dartmouth_Isochrone(Isochrone):
                 TRI = pickle.load(f,encoding='latin-1')
             finally:
                 f.close()
+        print(TRI)
 
         
         mags = {b:df[b].values for b in bands}

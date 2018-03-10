@@ -21,6 +21,9 @@ class MIST_Isochrone(FastIsochrone):
     loggTeff_col = 3
     logg_col = 4
     logL_col = 5
+    # JCZ 300118
+    # added phase info
+    phase_col = 8
     modelgrid = MISTModelGrid
     default_bands = ('G','B','V','J','H','K','W1','W2','W3','g','r','i','z','Kepler')
 
